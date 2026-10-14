@@ -1,11 +1,13 @@
 """
-DocControl v1.0
+DocControl v1.1
 ---------------
-Drop DocControl_v1.0.exe into a folder of saved emails (*.eml, *.msg) and run it.
+Drop DocControl_v1.1.exe into an inbox folder of saved emails (*.eml, *.msg)
+and run it.
 
 For every email in the same folder as the exe it:
   1. reads the sent date and subject,
-  2. creates a sub-folder named  YYYYMMDD_SUBJECT,
+  2. creates a folder named  YYYYMMDD_SUBJECT  ONE LEVEL UP - i.e. alongside
+     the folder the exe sits in (v1.1 change),
   3. saves a PDF of the email (header block + body) into that folder,
   4. saves every attachment into that folder,
   5. moves the original email file into that folder.
@@ -19,7 +21,7 @@ Windows 10/11 machine - gives a faithful render of HTML emails. If neither
 browser is found, a plain-text PDF is produced with the built-in fallback.
 """
 
-__version__ = "1.0"
+__version__ = "1.1"
 
 import base64
 import datetime as dt
@@ -40,8 +42,10 @@ from pathlib import Path
 APP = f"DocControl v{__version__}"
 ERROR_DIR = "_DocControl_ERRORS"
 LOG_NAME = "DocControl_log.txt"
-MAX_SUBJECT = 80           # keeps full paths well under Windows' 260-char limit
+MAX_SUBJECT = 80           # longest subject used in a folder name
 MAX_ATTACH_NAME = 120
+MAX_PATH_LEN = 250         # Windows' classic limit is 260; keep a margin
+MAX_FOLDER_LEN = 170       # full folder path, leaves room for file names
 ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
             *(f"LPT{i}" for i in range(1, 10))}
@@ -85,6 +89,17 @@ def clean_name(text: str, max_len: int, fallback: str) -> str:
     if text.upper().split(".")[0] in RESERVED:
         text = "_" + text
     return text
+
+
+def fit_path(folder: Path, name: str) -> Path:
+    """Shorten a file name so folder/name stays under MAX_PATH_LEN characters."""
+    target = folder / name
+    over = len(str(target)) - MAX_PATH_LEN
+    if over > 0:
+        stem, suffix = Path(name).stem, Path(name).suffix
+        stem = stem[:max(8, len(stem) - over)].rstrip(" .")
+        target = folder / f"{stem}{suffix}"
+    return target
 
 
 def unique_path(path: Path) -> Path:
@@ -203,7 +218,7 @@ def parse_eml(path: Path) -> Parsed:
     def save(folder: Path):
         saved = []
         for name, data in attachments:
-            target = unique_path(folder / clean_name(name, MAX_ATTACH_NAME, "attachment"))
+            target = unique_path(fit_path(folder, clean_name(name, MAX_ATTACH_NAME, "attachment")))
             target.write_bytes(data)
             saved.append(target.name)
         return saved
@@ -259,14 +274,14 @@ def parse_msg(path: Path):
             raw = (getattr(a, "longFilename", None) or getattr(a, "shortFilename", None)
                    or getattr(a, "displayName", None) or f"attachment_{i}")
             if isinstance(data, (bytes, bytearray)):
-                target = unique_path(folder / clean_name(raw, MAX_ATTACH_NAME, f"attachment_{i}"))
+                target = unique_path(fit_path(folder, clean_name(raw, MAX_ATTACH_NAME, f"attachment_{i}")))
                 target.write_bytes(bytes(data))
                 saved.append(target.name)
             else:
                 # Embedded Outlook item (an email attached to the email): save as .msg
                 try:
                     name = clean_name(Path(raw).stem, MAX_ATTACH_NAME - 4, f"attachment_{i}") + ".msg"
-                    target = unique_path(folder / name)
+                    target = unique_path(fit_path(folder, name))
                     a.save(customPath=str(folder), customFilename=target.name,
                            extractEmbedded=True)
                     saved.append(target.name)
@@ -394,7 +409,7 @@ def pdf_via_fpdf(p: Parsed, attachment_names, out_pdf: Path):
 
 
 # ------------------------------------------------------------------- main --
-def process(path: Path, root: Path, browser, log: Log) -> bool:
+def process(path: Path, root: Path, out_root: Path, browser, log: Log) -> bool:
     closer = None
     try:
         if path.suffix.lower() == ".msg":
@@ -409,8 +424,10 @@ def process(path: Path, root: Path, browser, log: Log) -> bool:
         if p.date.tzinfo is not None:
             p.date = p.date.astimezone()
         prefix = p.date.strftime("%Y%m%d")
-        subject = clean_name(p.subject, MAX_SUBJECT, "NO SUBJECT")
-        folder = unique_dir(root / f"{prefix}_{subject}")
+        # Trim the subject if the destination path is long (e.g. deep OneDrive folders).
+        room = MAX_FOLDER_LEN - len(str(out_root)) - len(prefix) - 5
+        subject = clean_name(p.subject, max(20, min(MAX_SUBJECT, room)), "NO SUBJECT")
+        folder = unique_dir(out_root / f"{prefix}_{subject}")
         folder.mkdir(parents=True)
 
         names = p.save_attachments(folder)
@@ -418,7 +435,7 @@ def process(path: Path, root: Path, browser, log: Log) -> bool:
             if n.startswith("("):
                 log(f"   ! attachment {n}")
 
-        pdf_path = unique_path(folder / f"{prefix}_{subject}.pdf")
+        pdf_path = unique_path(fit_path(folder, f"{prefix}_{subject}.pdf"))
         ok = False
         if browser:
             ok = pdf_via_browser(browser, build_html(p, names), pdf_path)
@@ -430,7 +447,7 @@ def process(path: Path, root: Path, browser, log: Log) -> bool:
         if closer:
             closer()
             closer = None
-        shutil.move(str(path), str(unique_path(folder / path.name)))
+        shutil.move(str(path), str(unique_path(fit_path(folder, path.name))))
         log(f"OK  {path.name}  ->  {folder.name}\\  "
             f"(PDF + {len([n for n in names if not n.startswith('(')])} attachment(s))")
         return True
@@ -454,8 +471,10 @@ def process(path: Path, root: Path, browser, log: Log) -> bool:
 
 def main():
     root = base_dir()
+    out_root = root.parent          # email folders go one level up, beside the exe's folder
     log = Log(root)
     log(f"{APP} - processing folder: {root}")
+    log(f"Filing emails into:  {out_root}")
     emails = sorted(f for f in root.iterdir()
                     if f.is_file() and f.suffix.lower() in (".eml", ".msg"))
     if not emails:
@@ -463,7 +482,7 @@ def main():
     else:
         browser = find_browser()
         log(f"PDF engine: {browser or 'built-in plain-text fallback'}")
-        ok = sum(process(e, root, browser, log) for e in emails)
+        ok = sum(process(e, root, out_root, browser, log) for e in emails)
         log(f"Done. {ok} of {len(emails)} email(s) filed"
             + (f", {len(emails) - ok} moved to {ERROR_DIR}" if ok < len(emails) else "") + ".")
         left = [f.name for f in root.iterdir()
