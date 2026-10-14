@@ -1,16 +1,19 @@
 """
-DocControl v1.1
+DocControl v2.0
 ---------------
-Drop DocControl_v1.1.exe into an inbox folder of saved emails (*.eml, *.msg)
+Drop DocControl_v2.0.exe into an inbox folder of saved emails (*.eml, *.msg)
 and run it.
 
 For every email in the same folder as the exe it:
   1. reads the sent date and subject,
   2. creates a folder named  YYYYMMDD_SUBJECT  ONE LEVEL UP - i.e. alongside
-     the folder the exe sits in (v1.1 change),
+     the folder the exe sits in (v1.1),
   3. saves a PDF of the email (header block + body) into that folder,
   4. saves every attachment into that folder,
-  5. moves the original email file into that folder.
+  5. renames the original email to match the folder (YYYYMMDD_SUBJECT.msg/.eml)
+     and moves it into that folder (v2.0 change).
+Images embedded in the email body (logos, signatures, pasted screenshots) are
+printed in the PDF and NOT saved as separate files (v2.0 change).
 
 Emails that cannot be processed are moved to  _DocControl_ERRORS  so that no
 .eml / .msg files are left beside the exe. A log is appended to
@@ -21,7 +24,7 @@ Windows 10/11 machine - gives a faithful render of HTML emails. If neither
 browser is found, a plain-text PDF is produced with the built-in fallback.
 """
 
-__version__ = "1.1"
+__version__ = "2.0"
 
 import base64
 import datetime as dt
@@ -100,6 +103,35 @@ def fit_path(folder: Path, name: str) -> Path:
         stem = stem[:max(8, len(stem) - over)].rstrip(" .")
         target = folder / f"{stem}{suffix}"
     return target
+
+
+IMAGE_EXT = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".webp", ".emz", ".wmz")
+
+
+def cid_used(cid: str, html_src: str) -> bool:
+    return bool(cid) and f"cid:{cid}".lower() in (html_src or "").lower()
+
+
+def move_file(src: Path, dst: Path, tries: int = 10):
+    """Move with retries - OneDrive / antivirus can briefly lock a file."""
+    last = None
+    for _ in range(tries):
+        try:
+            shutil.move(str(src), str(dst))
+            return
+        except OSError as e:
+            last = e
+            time.sleep(1)
+    # last resort: copy then delete
+    shutil.copy2(str(src), str(dst))
+    for _ in range(tries):
+        try:
+            src.unlink()
+            return
+        except OSError as e:
+            last = e
+            time.sleep(1)
+    raise OSError(f"copied to {dst.name} but could not remove original: {last}")
 
 
 def unique_path(path: Path) -> Path:
@@ -187,6 +219,7 @@ def parse_eml(path: Path) -> Parsed:
     except Exception:
         p.text = to_text(body_text.get_payload(decode=True)) if body_text else ""
 
+    html_src = p.html
     attachments = []
     for part in msg.walk():
         if part.is_multipart() and part.get_content_type() != "message/rfc822":
@@ -209,7 +242,10 @@ def parse_eml(path: Path) -> Parsed:
             continue
         if cid and ctype.startswith("image/"):
             p.inline[cid] = (ctype, data)
-        # Save anything that is a real attachment, or a named inline file.
+            embedded = disp != "attachment" or cid_used(cid, html_src)
+            if embedded:
+                continue        # printed in the PDF, not saved as a file
+        # Save anything that is a real attachment, or a named file.
         if disp == "attachment" or fname:
             ext = {"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif"
                    }.get(ctype, ".bin")
@@ -234,7 +270,8 @@ def parse_msg(path: Path):
     tolerant = ErrorBehavior(0)
     for flag in ErrorBehavior:          # be forgiving of slightly malformed files
         tolerant |= flag
-    msg = extract_msg.openMsg(str(path), errorBehavior=tolerant)
+    # Read into memory so the file on disk is never held open (OneDrive / Windows locks).
+    msg = extract_msg.openMsg(path.read_bytes(), errorBehavior=tolerant)
 
     p = Parsed()
     p.subject = to_text(getattr(msg, "subject", ""))
@@ -259,13 +296,20 @@ def parse_msg(path: Path):
     except Exception:
         p.text = ""
 
-    atts = list(getattr(msg, "attachments", []) or [])
-    for a in atts:
+    all_atts = list(getattr(msg, "attachments", []) or [])
+    atts = []
+    for a in all_atts:
         cid = (getattr(a, "cid", None) or getattr(a, "contentId", None) or "").strip("<> ")
         data = getattr(a, "data", None)
-        mime = getattr(a, "mimetype", None) or "application/octet-stream"
+        mime = (getattr(a, "mimetype", None) or "").lower()
+        name = (getattr(a, "longFilename", None) or getattr(a, "shortFilename", None) or "").lower()
+        is_image = mime.startswith("image/") or name.endswith(IMAGE_EXT)
         if cid and isinstance(data, (bytes, bytearray)):
-            p.inline[cid] = (mime, bytes(data))
+            p.inline[cid] = (mime or "image/png", bytes(data))
+        hidden = bool(getattr(a, "hidden", False))
+        if is_image and ((cid and cid_used(cid, p.html)) or hidden):
+            continue            # embedded image: printed in the PDF, not saved
+        atts.append(a)
 
     def save(folder: Path):
         saved = []
@@ -405,12 +449,23 @@ def pdf_via_fpdf(p: Parsed, attachment_names, out_pdf: Path):
     body = p.text or html_to_text(p.html)
     pdf.set_font(font, "", 10.5)
     pdf.multi_cell(0, 5.5, safe(body or "(no body)"), new_x="LMARGIN", new_y="NEXT")
+    import io
+    for mime, data in p.inline.values():   # embedded images, printed below the text
+        try:
+            pdf.ln(3)
+            pdf.image(io.BytesIO(data), w=min(120, pdf.epw))
+        except Exception:
+            pass
     pdf.output(str(out_pdf))
 
 
 # ------------------------------------------------------------------- main --
 def process(path: Path, root: Path, out_root: Path, browser, log: Log) -> bool:
+    """Once the email's folder exists, the email ALWAYS ends up in it (renamed),
+    even if the PDF or an attachment fails - problems are logged as warnings.
+    Only an email that cannot be read at all goes to the errors folder."""
     closer = None
+    folder = None
     try:
         if path.suffix.lower() == ".msg":
             p, closer = parse_msg(path)
@@ -429,30 +484,9 @@ def process(path: Path, root: Path, out_root: Path, browser, log: Log) -> bool:
         subject = clean_name(p.subject, max(20, min(MAX_SUBJECT, room)), "NO SUBJECT")
         folder = unique_dir(out_root / f"{prefix}_{subject}")
         folder.mkdir(parents=True)
-
-        names = p.save_attachments(folder)
-        for n in names:
-            if n.startswith("("):
-                log(f"   ! attachment {n}")
-
-        pdf_path = unique_path(fit_path(folder, f"{prefix}_{subject}.pdf"))
-        ok = False
-        if browser:
-            ok = pdf_via_browser(browser, build_html(p, names), pdf_path)
-        if not ok:
-            pdf_via_fpdf(p, names, pdf_path)
-            if browser:
-                log("   ! browser PDF failed - plain-text PDF used instead")
-
-        if closer:
-            closer()
-            closer = None
-        shutil.move(str(path), str(unique_path(fit_path(folder, path.name))))
-        log(f"OK  {path.name}  ->  {folder.name}\\  "
-            f"(PDF + {len([n for n in names if not n.startswith('(')])} attachment(s))")
-        return True
+        base = folder.name                 # YYYYMMDD_SUBJECT (incl. _02 if a repeat)
     except Exception as e:
-        log(f"ERR {path.name}: {e}")
+        log(f"ERR {path.name}: could not read email - {e}")
         log("   " + traceback.format_exc().strip().replace("\n", "\n   "))
         try:
             if closer:
@@ -462,11 +496,54 @@ def process(path: Path, root: Path, out_root: Path, browser, log: Log) -> bool:
         try:
             err_dir = root / ERROR_DIR
             err_dir.mkdir(exist_ok=True)
-            shutil.move(str(path), str(unique_path(err_dir / path.name)))
+            move_file(path, unique_path(err_dir / path.name))
             log(f"    moved to {ERROR_DIR}\\ for manual review")
         except Exception as e2:
             log(f"    could not move to {ERROR_DIR}: {e2}")
         return False
+
+    warnings = 0
+    names = []
+    try:
+        names = p.save_attachments(folder)
+        for n in names:
+            if n.startswith("("):
+                log(f"   ! attachment {n}")
+                warnings += 1
+    except Exception as e:
+        log(f"   ! attachments failed: {e}")
+        warnings += 1
+
+    try:
+        pdf_path = unique_path(fit_path(folder, f"{base}.pdf"))
+        ok = False
+        if browser:
+            ok = pdf_via_browser(browser, build_html(p, names), pdf_path)
+        if not ok:
+            pdf_via_fpdf(p, names, pdf_path)
+            if browser:
+                log("   ! browser PDF failed - simple PDF used instead")
+    except Exception as e:
+        log(f"   ! PDF failed: {e}")
+        warnings += 1
+
+    try:
+        if closer:
+            closer()
+    except Exception:
+        pass
+
+    try:
+        dest = unique_path(fit_path(folder, f"{base}{path.suffix.lower()}"))
+        move_file(path, dest)
+    except Exception as e:
+        log(f"ERR {path.name}: could not move email into {folder.name}\\ - {e}")
+        return False
+
+    saved = len([n for n in names if not n.startswith("(")])
+    log(f"OK  {path.name}  ->  {folder.name}\\{dest.name}  "
+        f"(PDF + {saved} attachment(s){', ' + str(warnings) + ' warning(s)' if warnings else ''})")
+    return True
 
 
 def main():

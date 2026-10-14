@@ -14,19 +14,19 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: python -m pip install -r requirements_v1.1.txt
+        run: python -m pip install -r requirements_v2.0.txt
       - name: Build exe
         run: >
-          pyinstaller --onefile --console --name DocControl_v1.1
+          pyinstaller --onefile --console --name DocControl_v2.0
           --collect-all extract_msg --collect-all fpdf
-          DocControl_v1.1.py
+          DocControl_v2.0.py
       - name: Smoke test (no emails present)
         run: |
           mkdir smoke
-          copy dist\DocControl_v1.1.exe smoke\
-          smoke\DocControl_v1.1.exe --nopause
+          copy dist\DocControl_v2.0.exe smoke\
+          smoke\DocControl_v2.0.exe --nopause
         shell: cmd
       - uses: actions/upload-artifact@v4
         with:
-          name: DocControl_v1.1-exe
-          path: dist/DocControl_v1.1.exe
+          name: DocControl_v2.0-exe
+          path: dist/DocControl_v2.0.exe
