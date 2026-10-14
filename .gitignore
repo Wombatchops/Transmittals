@@ -1,0 +1,8 @@
+.buildenv/
+.build/
+build/
+dist/
+__pycache__/
+*.spec
+*.exe
+DocControl_log.txt
