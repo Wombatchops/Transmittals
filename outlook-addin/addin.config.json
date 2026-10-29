@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "clientId": "",
+  "tenant": "designprocess.net.au",
+  "baseUrl": "https://wombatchops.github.io/Transmittals",
+  "library": "Project",
+  "inPath": "04 Document Control/02 Transmittals/In",
+  "pdfEngine": "graph"
+}

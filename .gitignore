@@ -6,3 +6,5 @@ __pycache__/
 *.spec
 *.exe
 DocControl_log.txt
+node_modules/
+outlook-addin/dist/

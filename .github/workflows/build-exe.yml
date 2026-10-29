@@ -3,6 +3,7 @@ name: Build DocControl exe
 on:
   push:
     branches: [main]
+    paths-ignore: ["outlook-addin/**", ".github/workflows/addin-pages.yml"]
   workflow_dispatch:
 
 jobs:

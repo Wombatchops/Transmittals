@@ -1,0 +1,98 @@
+<title>Doc Control Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+__CSS__
+/* ---- demo page only ----
+   Layout: Outlook mock + pretend SharePoint on the left, the real 340px task pane on the right.
+   Deliberately single (light) theme: it mirrors the Design Process tool standard and Outlook's light pane. */
+:root{color-scheme:light;}
+body{background:var(--paper); color:var(--ink);}
+.demo-head{background:var(--navy); color:#eef3f8; border-bottom:2px solid var(--navy-deep); padding-block:12px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.demo-head img{height:24px;}
+.demo-head .divider{width:1px; align-self:stretch; background:rgba(255,255,255,.18);}
+.demo-head h1{font-size:18px; font-weight:600; text-wrap:balance;}
+.demo-head .sub{font-size:12px; color:#b7c7d8; margin-top:2px;}
+.demo-head .file{font-family:var(--font-mono); font-size:10.5px; color:#8fa8c2;}
+.intro{max-width:1280px; margin:14px auto 0; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px));}
+.grid{max-width:1280px; margin:12px auto 24px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:14px; align-items:start;}
+.col{display:flex; flex-direction:column; gap:14px; min-width:0;}
+.panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+.panel-h{background:var(--navy-soft); padding:7px 12px; font-size:11px; font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.07em; color:var(--navy); font-weight:600; display:flex; justify-content:space-between; gap:8px;}
+.panel-h span:last-child{text-transform:none; letter-spacing:0; font-weight:400; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.outlook{display:grid; grid-template-columns:260px minmax(0,1fr); min-height:430px;}
+#mailList{border-right:1px solid var(--line); background:var(--panel-alt);}
+.mrow{display:grid; grid-template-columns:1fr auto; gap:2px 8px; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--line); padding:9px 12px;}
+.mrow:hover{background:#fff;}
+.mrow.sel{background:var(--steel-soft); box-shadow:inset 3px 0 0 var(--steel);}
+.mfrom{font-weight:600; font-size:12.5px;}
+.mdate{font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);}
+.msub{grid-column:1/-1; font-size:12px; color:var(--navy);}
+.mhint{grid-column:1/-1; font-size:10.5px; color:var(--ink-faint);}
+#readFrame{width:100%; height:100%; min-height:430px; border:0; background:#fff;}
+.pane-wrap{position:sticky; top:12px; border:1px solid var(--line-strong); border-radius:var(--radius); overflow:hidden; box-shadow:0 2px 10px rgba(19,39,67,.12); background:var(--paper);}
+.pane-wrap .dc{min-height:0;}
+#spTree{max-height:340px; overflow:auto; padding:6px 0;}
+.tn{display:flex; align-items:center; gap:6px; padding:3px 10px; font-size:12.5px; white-space:nowrap;}
+.tn .tnm{overflow:hidden; text-overflow:ellipsis;}
+.tn .sz{margin-left:auto; font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint);}
+.tn.fl{cursor:pointer;}
+.tn.fl:hover{background:var(--steel-soft);}
+.tn.fd{font-weight:600; color:var(--navy);}
+.tn.new{background:var(--green-soft);}
+.empty{padding:14px 12px; color:var(--ink-faint); font-size:12px;}
+#pv .pv-h{display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 12px; background:var(--navy-soft); font-size:12px;}
+#pv .pv-h b{font-family:var(--font-mono); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#pvBody .pages{display:flex; flex-direction:column; gap:10px; align-items:center; padding:12px; background:#5b6570; max-height:640px; overflow:auto;}
+#pvBody canvas{max-width:100%; height:auto; box-shadow:0 1px 6px rgba(0,0,0,.35); background:#fff;}
+#pvBody img{max-width:100%; display:block; margin:10px auto;}
+#pvBody pre{margin:0; padding:12px; font-size:11.5px; white-space:pre-wrap; max-height:420px; overflow:auto;}
+.try{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; margin-top:6px;}
+.try code{font-size:11.5px;}
+@media (max-width:900px){
+  .grid{grid-template-columns:1fr;}
+  .pane-wrap{position:static; max-width:420px; width:100%; margin:0 auto;}
+  .outlook{grid-template-columns:1fr;}
+  #mailList{border-right:0; border-bottom:1px solid var(--line);}
+  #readFrame{min-height:320px;}
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<header class="demo-head">
+  <img src="__LOGO__" alt="Design Process">
+  <span class="divider"></span>
+  <div><h1>Send to Doc Control: Outlook add-in demo</h1>
+    <div class="sub">The real add-in screen, using sample emails and a pretend SharePoint. Nothing here touches your real files.</div></div>
+  <span class="file">DocControl_Demo_v__VERSION__.html</span>
+</header>
+<div class="intro">
+  <div class="banner info"><b>How to use:</b> pick an email on the left, then use the Doc Control pane on the right as you would in Outlook.
+    In SharePoint, every job is its own site; this demo has a few pretend ones. Try:
+    <div class="try"><span><code>185501</code> found from the subject</span><span><code>185301</code> two sites with the same number</span>
+      <span><code>999999</code> no access, ask the PM</span><span><code>186201</code> In folder missing, gets created</span>
+      <span><code>000000</code> the Test site</span></div>
+    Click any file in the SharePoint panel to preview it, including the generated PDF.</div>
+</div>
+<div class="grid">
+  <div class="col">
+    <div class="panel">
+      <div class="panel-h"><span>Outlook (sample inbox)</span><span>select an email</span></div>
+      <div class="outlook"><div id="mailList"></div><iframe id="readFrame" title="Email" sandbox=""></iframe></div>
+    </div>
+    <div class="panel" id="spCard">
+      <div class="panel-h"><span>SharePoint (pretend)</span><span id="spSite">file an email to see what gets created</span></div>
+      <div id="spTree"><div class="empty">Nothing filed yet.</div></div>
+    </div>
+    <div class="panel hidden" id="pv">
+      <div class="pv-h"><b id="pvName"></b><button class="btn btn-sm" id="pvClose">Close</button></div>
+      <div id="pvBody"></div>
+    </div>
+  </div>
+  <div class="pane-wrap"><div id="pane"></div></div>
+</div>
+<script>
+__JS__
+</script>
