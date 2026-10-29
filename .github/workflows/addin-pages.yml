@@ -34,8 +34,13 @@ jobs:
           DC_CLIENT_ID: ${{ vars.DC_CLIENT_ID }}
         run: npm run build
       - name: Validate manifest (Microsoft service)
-        continue-on-error: true
-        run: npx --yes office-addin-manifest validate dist/DocControl_manifest_v*.xml
+        run: |
+          set +e
+          out=$(npx --yes office-addin-manifest validate dist/DocControl_manifest_v*.xml 2>&1); code=$?
+          echo "$out"
+          summary=$(echo "$out" | grep -v "^npm warn" | tr '\n' ' ' | sed 's/  */ /g' | cut -c1-1500)
+          if [ $code -eq 0 ]; then echo "::notice title=Manifest validation passed::$summary"; else echo "::warning title=Manifest validation FAILED::$summary"; fi
+          exit 0
       - uses: actions/upload-pages-artifact@v3
         with:
           path: outlook-addin/dist
