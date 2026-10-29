@@ -2,7 +2,7 @@
 import { chromium } from "playwright";
 import path from "node:path";
 const out = process.argv[2] || ".";
-const file = "file://" + path.resolve("dist/DocControl_Demo_v1.0.html");
+const file = "file://" + path.resolve("dist/DocControl_Demo_v1.1.html");
 const b = await chromium.launch();
 const pg = await b.newPage({ viewport: { width: 1360, height: 1000 } });
 const errors = [];
@@ -30,6 +30,14 @@ await pane.locator("#siteArea .banner.bad").waitFor();
 check((await t("#siteArea")).includes("Ask the project manager"), "no-access message");
 check(await pane.locator("#go").isDisabled(), "button disabled without site");
 await pg.screenshot({ path: `${out}/02_noaccess.png` });
+
+// not 6 digits
+await pane.locator("#job").fill("18550"); await pane.locator("#find").click();
+check((await t("#siteArea")).includes("6 digits"), "5-digit job rejected with hint");
+// site title with no space after the number -> found by the full-list fallback
+await pane.locator("#job").fill("146100"); await pane.locator("#find").click();
+await pg.waitForFunction(() => document.querySelector("#siteArea .nm")?.textContent === "146100MtRawdon", null, { timeout: 15000 });
+check(true, "146100MtRawdon found via first-6-characters rule");
 
 // duplicates
 await pane.locator("#job").fill("185301"); await pane.locator("#find").click();

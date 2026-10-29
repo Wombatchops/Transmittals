@@ -6,6 +6,10 @@ export const CONFIG = typeof __DC_CONFIG__ !== "undefined" ? __DC_CONFIG__ : {
 };
 
 export const VERSION_HISTORY = [
+  { v: "1.1", date: "2026-10-30", notes: [
+    "Job match rule: the head job number must be 6 digits and equal the first 6 characters of the SharePoint site name.",
+    "If Microsoft's site search misses a site, the add-in checks every site you can open using the same rule.",
+  ] },
   { v: "1.0", date: "2026-10-30", notes: [
     "Pilot release: Send to Doc Control button in Outlook.",
     "Finds the job's SharePoint site from the head job number; optional sub job number added after the date.",

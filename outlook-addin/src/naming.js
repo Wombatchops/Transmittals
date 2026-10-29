@@ -42,18 +42,21 @@ export function folderName(date, subject, subJob) {
 
 /** "Name (2)", "Name (3)" ... for repeats - same style already used in the In folders. */
 export function numbered(name, n) {
-  if (n <= 1) return name;
-  const dot = name.lastIndexOf(".");
-  if (dot > 0 && name.length - dot <= 6) return `${name.slice(0, dot)} (${n})${name.slice(dot)}`;
-  return `${name} (${n})`;
+  return n <= 1 ? name : `${name} (${n})`;   // folders only - no extension handling
 }
 
-/** True when a site's name / display name starts with the job number (and not a longer number). */
+export const JOB_DIGITS = 6;
+
+/** Head job numbers are exactly 6 digits. */
+export function isJobNumber(job) {
+  return new RegExp(`^\\d{${JOB_DIGITS}}$`).test(String(job ?? ""));
+}
+
+/** Match rule: the first 6 characters of the site name (or its title) equal the job number. */
 export function siteMatchesJob(site, job) {
-  const j = cleanJob(job).toLowerCase();
-  if (!j) return false;
-  const re = new RegExp("^" + j.replace(/[-]/g, "\\-") + "(?![0-9])", "i");
-  return [site.displayName, site.name].some((s) => re.test(String(s ?? "").trim()));
+  const j = cleanJob(job);
+  if (!isJobNumber(j)) return false;
+  return [site.name, site.displayName].some((s) => String(s ?? "").trim().slice(0, JOB_DIGITS) === j);
 }
 
 /** Pull a likely job number (6 digits) from a subject line, for a suggestion only. */

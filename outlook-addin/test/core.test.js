@@ -22,11 +22,14 @@ test("folder names", () => {
   assert.equal(numbered("20261023 Updated NWD", 2), "20261023 Updated NWD (2)");
 });
 
-test("job matching", () => {
+test("job matching: first 6 characters of the site name", () => {
   assert.ok(siteMatchesJob({ displayName: "185301 KVL Milling", name: "185301KVLMilling" }, "185301"));
   assert.ok(siteMatchesJob({ displayName: "x", name: "146100-MtRawdon" }, "146100"));
-  assert.ok(!siteMatchesJob({ displayName: "1853011 Other", name: "1853011Other" }, "185301"));
+  assert.ok(siteMatchesJob({ displayName: "", name: "185302KVLCrushing" }, " 185302 "));
   assert.ok(!siteMatchesJob({ displayName: "Project 185301", name: "P185301" }, "185301"));
+  assert.ok(!siteMatchesJob({ displayName: "18530 Other", name: "18530Other" }, "18530"), "5 digits rejected");
+  assert.ok(!siteMatchesJob({ displayName: "1853012 Other", name: "1853012Other" }, "1853012"), "7 digits rejected");
+  assert.equal(numbered("20261028 RE Rev 1.2", 2), "20261028 RE Rev 1.2 (2)");
   assert.equal(suggestJob("RE: 185501 Screen tank"), "185501");
   assert.equal(suggestJob("Tel 0412345678"), "");
 });
@@ -64,6 +67,14 @@ test("duplicate job numbers return both sites", async () => {
   const { graph } = setup();
   const sites = await findJob(graph, "185301");
   assert.equal(sites.length, 2);
+});
+
+test("site missed by search is still found via the full site list", async () => {
+  const { graph, fake } = setup({ searchable: false });
+  const sites = await findJob(graph, "146100");
+  assert.equal(sites.length, 1);
+  assert.equal(sites[0].name, "146100-MtRawdon");
+  assert.ok(fake.log.some((l) => l.includes("search=*")));
 });
 
 test("site without Project library -> friendly error", async () => {

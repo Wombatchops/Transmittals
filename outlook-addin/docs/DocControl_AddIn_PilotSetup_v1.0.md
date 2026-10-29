@@ -69,7 +69,7 @@ Use the **000000 Test** site (job `000000`) first, then a real job.
 - [ ] Email with a signature logo or pasted screenshot: it should appear in the PDF but **not** as a separate file.
 - [ ] Sub job number filled in: folder reads `YYYYMMDD SUB Subject`.
 - [ ] Same email twice: the second folder gets ` (2)`.
-- [ ] Wrong or no-access job number: you get the "ask the project manager" message.
+- [ ] Wrong or no-access job number: you get the "ask the project manager" message. Fewer or more than 6 digits: you get the "6 digits" hint.
 - [ ] Job number used by two sites (e.g. 185301): you're asked to pick one.
 - [ ] Large email (over 2 MB): PDF still created.
 - [ ] Email in a shared mailbox (if you use one).
@@ -107,6 +107,7 @@ Send back anything that looks wrong. Screenshots of the pane and the folder are 
 |---|---|
 | Not set up yet | Client ID missing. Do step C. |
 | This version of Outlook can't sign in to add-ins | Update Microsoft 365 apps, or use new Outlook / the web. |
+| Head job numbers are 6 digits | The job number is compared with the first 6 characters of the SharePoint site name, so enter exactly 6 digits. |
 | Job … wasn't found in SharePoint, or you don't have access | Wrong number, or no access to that job site. Ask the project manager. |
 | … has no "Project" document library / "04 Document Control/02 Transmittals" folder | The job site isn't set up to the standard layout. The PM should fix the site. |
 | AADSTS… error on sign-in | The app registration or consent (step B) isn't complete. Send the code to IT. |

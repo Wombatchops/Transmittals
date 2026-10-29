@@ -1,5 +1,6 @@
 {
-  "version": "1.0",
+  "version": "1.1",
+  "manifestVersion": "1.0",
   "clientId": "",
   "tenant": "designprocess.net.au",
   "baseUrl": "https://wombatchops.github.io/Transmittals",

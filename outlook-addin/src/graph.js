@@ -55,11 +55,22 @@ export class Graph {
       (r.value || []).forEach(add);
     } catch (e) { if (e.status !== 400 && e.status !== 404) throw e; }
     if (!found.size) {
-      // Fallback: Microsoft Search (indexes site titles differently).
+      // Fallback 1: Microsoft Search with a prefix wildcard (catches names like "185302KVLCrushing").
       try {
-        const r = await this.req("POST", "/search/query", { body: { requests: [{ entityTypes: ["site"], query: { queryString: job }, size: 50 }] } });
+        const r = await this.req("POST", "/search/query", { body: { requests: [{ entityTypes: ["site"], query: { queryString: `${job}*` }, size: 100 }] } });
         for (const c of r.value?.[0]?.hitsContainers || []) for (const h of c.hits || []) {
           const s = h.resource; if (s) add({ id: s.id, name: s.name, displayName: s.displayName, webUrl: s.webUrl });
+        }
+      } catch (e) { if (e.status >= 500) throw e; }
+    }
+    if (!found.size) {
+      // Fallback 2: list every site this person can open and apply the same first-6-characters rule.
+      try {
+        let url = `/sites?search=*&$select=id,name,displayName,webUrl&$top=200`;
+        for (let page = 0; url && page < 25; page++) {
+          const r = await this.req("GET", url.replace("https://graph.microsoft.com/v1.0", ""));
+          (r.value || []).forEach(add);
+          url = r["@odata.nextLink"] || null;
         }
       } catch (e) { if (e.status >= 500) throw e; }
     }

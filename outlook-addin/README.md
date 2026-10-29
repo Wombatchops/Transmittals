@@ -5,7 +5,7 @@
 That folder gets the email (.eml), a PDF of it, and its attachments. Embedded images are printed in the PDF and not saved separately.
 
 - **Set up / pilot / rollout:** [docs/DocControl_AddIn_PilotSetup_v1.0.md](docs/DocControl_AddIn_PilotSetup_v1.0.md)
-- **Demo (sample data, no sign-in):** https://wombatchops.github.io/Transmittals/DocControl_Demo_v1.0.html
+- **Demo (sample data, no sign-in):** https://wombatchops.github.io/Transmittals/DocControl_Demo_v1.1.html
 - **Manifest:** https://wombatchops.github.io/Transmittals/DocControl_manifest_v1.0.xml
 
 | Path | What |

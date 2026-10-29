@@ -12,9 +12,10 @@ export const DEMO_SITES = [
   { job: "185501", name: "185501CopperOne", displayName: "185501 Copper One", folders: ["04 Document Control/02 Transmittals/In/20261023 Updated NWD"] },
   { job: "186201", name: "186201MontageNPIPiping", displayName: "186201 Montage NPI Piping", folders: ["04 Document Control/02 Transmittals"] },
   { job: "190100", name: "190100NoLibrary", displayName: "190100 Site Without Project Library", folders: null },
+  { job: "146100", name: "146100-MtRawdon", displayName: "146100MtRawdon", folders: ["04 Document Control/02 Transmittals/In"] },
 ];
 
-export function createFakeGraph({ sites = DEMO_SITES, convert = "ok", host = "https://designprocessvbd.sharepoint.com", messages = {} } = {}) {
+export function createFakeGraph({ sites = DEMO_SITES, convert = "ok", host = "https://designprocessvbd.sharepoint.com", messages = {}, searchable = true } = {}) {
   let seq = 1;
   const items = new Map();   // id -> item
   const drives = new Map();  // driveId -> { id, name, webUrl, rootId, siteId }
@@ -107,7 +108,9 @@ export function createFakeGraph({ sites = DEMO_SITES, convert = "ok", host = "ht
 
     if (method === "GET" && p === "/sites") {
       const q = (u.searchParams.get("search") || "").toLowerCase();
-      return json(200, { value: siteList.filter((s) => s.displayName.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
+      // Like the real search: whole words in the title only (so "185302KVLCrushing" style names need the fallbacks).
+      const words = (s) => s.toLowerCase().split(/[^a-z0-9]+/);
+      return json(200, { value: siteList.filter((s) => q === "*" || (searchable && words(s.displayName).includes(q)))
         .map(({ id, name, displayName, webUrl }) => ({ id, name, displayName, webUrl })) });
     }
     if (method === "POST" && p === "/search/query") return json(200, { value: [{ hitsContainers: [{ hits: [] }] }] });

@@ -30,7 +30,7 @@ for (const f of ["taskpane.html", "commands.html"]) {
 for (const f of fs.readdirSync(path.join(root, "assets"))) fs.copyFileSync(path.join(root, "assets", f), path.join(dist, "assets", f));
 
 // 2. Manifest (the file installed in Outlook)
-const manifestName = `DocControl_manifest_v${v}.xml`;
+const manifestName = `DocControl_manifest_v${cfg.manifestVersion}.xml`;   // only changes when the manifest itself changes
 const manifest = fs.readFileSync(path.join(root, "manifest", manifestName), "utf8").replaceAll("__BASE__", base);
 fs.writeFileSync(path.join(dist, manifestName), manifest);
 

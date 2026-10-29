@@ -1,6 +1,6 @@
 // Task pane screen. Host-agnostic: the real add-in and the demo both call startUI().
 import { parseEmail, sentText, escapeHtml as esc } from "./mime.js";
-import { folderName, cleanJob, suggestJob } from "./naming.js";
+import { folderName, cleanJob, suggestJob, isJobNumber, JOB_DIGITS } from "./naming.js";
 import { findJob, findInFolder, fileEmail, FriendlyError } from "./filer.js";
 import { VERSION_HISTORY } from "./config.js";
 
@@ -52,7 +52,7 @@ export function startUI(env) {
         <h3>Job</h3>
         <div class="field">
           <label for="job">Head job number</label>
-          <div class="row"><input class="txt" id="job" autocomplete="off" spellcheck="false" placeholder="e.g. 185501">
+          <div class="row"><input class="txt" id="job" autocomplete="off" spellcheck="false" placeholder="6 digits, e.g. 185501" inputmode="numeric" maxlength="6">
             <button class="btn btn-steel" id="find">Find</button></div>
           <div class="chips" id="chips"></div>
         </div>
@@ -128,6 +128,10 @@ export function startUI(env) {
     S.sites = []; S.site = null; S.job = job; S.done = false;
     $("result").innerHTML = "";
     if (!job) { $("siteArea").innerHTML = ""; refresh(); return; }
+    if (!isJobNumber(job)) {
+      $("siteArea").innerHTML = `<div class="banner" style="margin-top:6px">Head job numbers are ${JOB_DIGITS} digits, e.g. 185501. The job's SharePoint site name starts with it.</div>`;
+      refresh(); return;
+    }
     if (!env.graph) { refresh(); return; }
     $("siteArea").innerHTML = `<div class="hint" style="margin-top:6px"><span class="spin"></span> Looking for job ${esc(job)}…</div>`;
     try {
